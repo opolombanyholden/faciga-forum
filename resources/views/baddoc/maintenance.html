@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Site en Maintenance - ANPI-Gabon</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: linear-gradient(135deg, #1D4F91 0%, #1D4F91 60%, #FFCD00 60%, #FFCD00 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: white;
+            border-radius: 10px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            padding: 60px 40px;
+            text-align: center;
+        }
+
+        .logo {
+            margin-bottom: 40px;
+        }
+
+        .logo-square {
+            width: 80px;
+            height: 80px;
+            background: #1D4F91;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+
+        .logo-icon {
+            position: relative;
+            width: 50px;
+            height: 50px;
+        }
+
+        .arrow {
+            position: absolute;
+        }
+
+        .arrow-yellow {
+            width: 0;
+            height: 0;
+            border-left: 15px solid transparent;
+            border-right: 15px solid transparent;
+            border-bottom: 25px solid #FFCD00;
+            bottom: 15px;
+            right: 5px;
+            transform: rotate(-45deg);
+        }
+
+        .arrow-green-1 {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 18px solid #009A44;
+            top: 0;
+            left: 10px;
+            transform: rotate(-20deg);
+        }
+
+        .arrow-green-2 {
+            width: 0;
+            height: 0;
+            border-left: 10px solid transparent;
+            border-right: 10px solid transparent;
+            border-bottom: 18px solid #009A44;
+            top: 5px;
+            right: 5px;
+            transform: rotate(20deg);
+        }
+
+        h1 {
+            color: #1D4F91;
+            font-size: 28px;
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .subtitle {
+            color: #1D4F91;
+            font-size: 16px;
+            margin-bottom: 30px;
+            font-weight: 400;
+        }
+
+        .message {
+            color: #58595b;
+            font-size: 18px;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #FFCD00;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 30px auto;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .contact {
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 1px solid #e0e0e0;
+            color: #58595b;
+            font-size: 14px;
+        }
+
+        .contact p {
+            margin: 5px 0;
+        }
+
+        @media (max-width: 600px) {
+            .container {
+                padding: 40px 30px;
+            }
+
+            h1 {
+                font-size: 24px;
+            }
+
+            .message {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="logo">
+            <div class="logo-square">
+               <img src="icon-anpi.png" alt="ANPI-GABON">
+            </div>
+            <h1>ANPI-GABON</h1>
+            <p class="subtitle">Agence Nationale de Promotion des Investissements du Gabon</p>
+        </div>
+
+        <div class="spinner"></div>
+
+        <div class="message">
+            <p><strong>Site en maintenance</strong></p>
+            <p>Notre site web est actuellement en cours de maintenance pour vous offrir une meilleure expérience.</p>
+            <p>Veuillez réessayer dans quelques instants.</p>
+        </div>
+
+        <div class="contact">
+            <p><strong>Pour nous contacter :</strong></p>
+            <p>📞 +241 74 58 24 24</p>
+            <p>📧 contact@investingabon.ga</p>
+            <p>🌐 www.investingabon.ga</p>
+        </div>
+    </div>
+</body>
+</html>
