@@ -158,32 +158,32 @@
                                     <td>
                                         @if($company->country === 'Côte d\'Ivoire')
                                         <span class="badge bg-warning bg-opacity-10 text-warning">
-                                            🇨🇮 {{ $company->country }}
+                                            🇨🇮 CI
                                         </span>
                                         @else
                                         <span class="badge bg-success bg-opacity-10 text-success">
-                                            🇬🇦 {{ $company->country }}
+                                            🇬🇦 GA
                                         </span>
                                         @endif
                                     </td>
                                     <td>
-                                        <small class="text-muted">{{ Str::limit($company->sector, 25) }}</small>
+                                        <small>{{ Str::limit($company->sector, 30) }}</small>
                                     </td>
                                     <td>
                                         <small>
-                                            <i class="bi bi-envelope"></i> {{ $company->email }}<br>
+                                            <i class="bi bi-envelope"></i> {{ Str::limit($company->email, 20) }}<br>
                                             <i class="bi bi-telephone"></i> {{ $company->phone }}
                                         </small>
                                     </td>
                                     <td class="text-center">
-                                        <span class="badge bg-info">
-                                            {{ $company->participants->count() }} / 3
+                                        <span class="badge bg-primary">
+                                            {{ $company->participants->count() }}/3
                                         </span>
                                     </td>
                                     <td>
                                         @if($company->status === 'pending')
                                         <span class="badge bg-warning">
-                                            <i class="bi bi-hourglass-split"></i> En attente
+                                            <i class="bi bi-clock"></i> En attente
                                         </span>
                                         @elseif($company->status === 'approved')
                                         <span class="badge bg-success">
@@ -210,15 +210,25 @@
                                             
                                             @if($admin->canManageCompanies())
                                                 @if($company->status === 'pending')
-                                                <button type="button" 
-                                                        class="btn btn-outline-success"
-                                                        onclick="approveCompany({{ $company->id }}, '{{ $company->name }}')"
-                                                        title="Approuver">
-                                                    <i class="bi bi-check-lg"></i>
-                                                </button>
+                                                <!-- Formulaire d'approbation -->
+                                                <form action="{{ route('admin.approve', $company->id) }}" 
+                                                      method="POST" 
+                                                      class="d-inline"
+                                                      onsubmit="return confirm('Approuver l\'entreprise {{ addslashes($company->name) }} ?\n\nUn email de confirmation sera envoyé automatiquement.')">
+                                                    @csrf
+                                                    @method('PUT')
+                                                    <button type="submit" 
+                                                            class="btn btn-outline-success"
+                                                            title="Approuver">
+                                                        <i class="bi bi-check-lg"></i>
+                                                    </button>
+                                                </form>
+                                                
+                                                <!-- Bouton pour ouvrir le modal de rejet -->
                                                 <button type="button" 
                                                         class="btn btn-outline-danger"
-                                                        onclick="openRejectModal({{ $company->id }}, '{{ $company->name }}')"
+                                                        data-bs-toggle="modal"
+                                                        data-bs-target="#rejectModal{{ $company->id }}"
                                                         title="Rejeter">
                                                     <i class="bi bi-x-lg"></i>
                                                 </button>
@@ -227,6 +237,53 @@
                                         </div>
                                     </td>
                                 </tr>
+                                
+                                <!-- Modal de rejet pour cette entreprise -->
+                                @if($admin->canManageCompanies() && $company->status === 'pending')
+                                <div class="modal fade" id="rejectModal{{ $company->id }}" tabindex="-1">
+                                    <div class="modal-dialog">
+                                        <div class="modal-content">
+                                            <form action="{{ route('admin.reject', $company->id) }}" method="POST">
+                                                @csrf
+                                                @method('PUT')
+                                                <div class="modal-header">
+                                                    <h5 class="modal-title">
+                                                        <i class="bi bi-x-circle text-danger"></i> Rejeter l'entreprise
+                                                    </h5>
+                                                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                                                </div>
+                                                <div class="modal-body">
+                                                    <p>Vous êtes sur le point de rejeter : <strong>{{ $company->name }}</strong></p>
+                                                    
+                                                    <div class="alert alert-warning">
+                                                        <i class="bi bi-exclamation-triangle"></i>
+                                                        Cette action enverra un email de notification à l'entreprise.
+                                                    </div>
+
+                                                    <div class="mb-3">
+                                                        <label for="rejection_reason{{ $company->id }}" class="form-label">
+                                                            Motif du rejet <small class="text-muted">(optionnel)</small>
+                                                        </label>
+                                                        <textarea class="form-control" 
+                                                                  id="rejection_reason{{ $company->id }}" 
+                                                                  name="rejection_reason" 
+                                                                  rows="4"
+                                                                  placeholder="Ex: Dossier incomplet, informations manquantes..."></textarea>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                                                        Annuler
+                                                    </button>
+                                                    <button type="submit" class="btn btn-danger">
+                                                        <i class="bi bi-x-circle"></i> Confirmer le rejet
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+                                </div>
+                                @endif
                                 @endforeach
                             </tbody>
                         </table>
@@ -252,86 +309,6 @@
         </div>
     </div>
 </div>
-
-<!-- Modal de rejet -->
-<div class="modal fade" id="rejectModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="rejectForm" method="POST">
-                @csrf
-                @method('PUT')
-                <div class="modal-header">
-                    <h5 class="modal-title">
-                        <i class="bi bi-x-circle text-danger"></i> Rejeter l'entreprise
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <p>Vous êtes sur le point de rejeter : <strong id="companyNameReject"></strong></p>
-                    
-                    <div class="alert alert-warning">
-                        <i class="bi bi-exclamation-triangle"></i>
-                        Cette action enverra un email de notification à l'entreprise.
-                    </div>
-
-                    <div class="mb-3">
-                        <label for="rejection_reason" class="form-label">
-                            Motif du rejet <small class="text-muted">(optionnel)</small>
-                        </label>
-                        <textarea class="form-control" 
-                                  id="rejection_reason" 
-                                  name="rejection_reason" 
-                                  rows="4"
-                                  placeholder="Ex: Dossier incomplet, informations manquantes..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-                        Annuler
-                    </button>
-                    <button type="submit" class="btn btn-danger">
-                        <i class="bi bi-x-circle"></i> Confirmer le rejet
-                    </button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-
-<script>
-// Approbation rapide
-function approveCompany(id, name) {
-    if (confirm(`Approuver l'entreprise "${name}" ?\n\nUn email de confirmation sera envoyé automatiquement.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/admin/companies/${id}/approve`;
-        
-        const csrf = document.createElement('input');
-        csrf.type = 'hidden';
-        csrf.name = '_token';
-        csrf.value = '{{ csrf_token() }}';
-        
-        const method = document.createElement('input');
-        method.type = 'hidden';
-        method.name = '_method';
-        method.value = 'PUT';
-        
-        form.appendChild(csrf);
-        form.appendChild(method);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-// Ouvrir modal de rejet
-function openRejectModal(id, name) {
-    document.getElementById('companyNameReject').textContent = name;
-    document.getElementById('rejectForm').action = `/admin/companies/${id}/reject`;
-    
-    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
-    modal.show();
-}
-</script>
 
 <style>
 .table td {

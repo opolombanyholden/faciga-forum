@@ -19,14 +19,23 @@
                 </div>
                 <div>
                     @if($company->status === 'pending' && $admin->canManageCompanies())
-                    <button type="button" 
-                            class="btn btn-success"
-                            onclick="approveCompany({{ $company->id }}, '{{ $company->name }}')">
-                        <i class="bi bi-check-circle"></i> Approuver
-                    </button>
+                    <!-- Formulaire d'approbation -->
+                    <form action="{{ route('admin.approve', $company->id) }}" 
+                          method="POST" 
+                          class="d-inline"
+                          onsubmit="return confirm('Approuver l\'entreprise {{ addslashes($company->name) }} ?\n\nUn email de confirmation sera envoyé automatiquement.')">
+                        @csrf
+                        @method('PUT')
+                        <button type="submit" class="btn btn-success">
+                            <i class="bi bi-check-circle"></i> Approuver
+                        </button>
+                    </form>
+                    
+                    <!-- Bouton modal de rejet -->
                     <button type="button" 
                             class="btn btn-danger"
-                            onclick="openRejectModal({{ $company->id }}, '{{ $company->name }}')">
+                            data-bs-toggle="modal"
+                            data-bs-target="#rejectModal">
                         <i class="bi bi-x-circle"></i> Rejeter
                     </button>
                     @endif
@@ -175,8 +184,10 @@
                                 </div>
                                 <div class="flex-grow-1 ms-3">
                                     <h6 class="mb-1">{{ $participant->name }}</h6>
-                                    <p class="text-muted mb-1 small">{{ $participant->function }}</p>
-                                    <p class="mb-0 small">
+                                    <p class="mb-1 text-muted small">
+                                        <i class="bi bi-briefcase"></i> {{ $participant->function }}
+                                    </p>
+                                    <p class="mb-0 text-muted small">
                                         <i class="bi bi-envelope"></i> {{ $participant->email }}<br>
                                         <i class="bi bi-telephone"></i> {{ $participant->phone }}
                                     </p>
@@ -186,9 +197,9 @@
                         @endforeach
                     </div>
                     @else
-                    <div class="text-center text-muted py-4">
-                        <i class="bi bi-people fs-1"></i>
-                        <p class="mt-2 mb-0">Aucun participant enregistré</p>
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-person-x fs-1"></i>
+                        <p class="mt-2">Aucun participant enregistré</p>
                     </div>
                     @endif
                 </div>
@@ -200,54 +211,47 @@
             <!-- Statut -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-0 py-3">
-                    <h5 class="mb-0"><i class="bi bi-flag me-2"></i>Statut du dossier</h5>
+                    <h5 class="mb-0"><i class="bi bi-flag me-2"></i>Statut</h5>
                 </div>
                 <div class="card-body">
-                    <div class="mb-3">
-                        <label class="text-muted small">Statut de validation</label>
-                        <p class="mb-0">
-                            @if($company->status === 'pending')
-                            <span class="badge bg-warning fs-6">
-                                <i class="bi bi-hourglass-split"></i> En attente de validation
-                            </span>
-                            @elseif($company->status === 'approved')
-                            <span class="badge bg-success fs-6">
-                                <i class="bi bi-check-circle"></i> Approuvé
-                            </span>
-                            @else
-                            <span class="badge bg-danger fs-6">
-                                <i class="bi bi-x-circle"></i> Rejeté
-                            </span>
-                            @endif
-                        </p>
+                    @if($company->status === 'pending')
+                    <div class="alert alert-warning mb-0">
+                        <i class="bi bi-clock fs-4"></i>
+                        <h6 class="mt-2 mb-1">En attente</h6>
+                        <small>Le dossier est en cours d'examen</small>
                     </div>
-
-                    <div class="mb-3">
-                        <label class="text-muted small">Participation confirmée</label>
-                        <p class="mb-0">
-                            @if($company->confirmed)
-                            <span class="badge bg-primary fs-6">
-                                <i class="bi bi-hand-thumbs-up"></i> Oui
-                            </span>
-                            @else
-                            <span class="badge bg-secondary fs-6">Non</span>
-                            @endif
-                        </p>
+                    @elseif($company->status === 'approved')
+                    <div class="alert alert-success mb-0">
+                        <i class="bi bi-check-circle fs-4"></i>
+                        <h6 class="mt-2 mb-1">Approuvé</h6>
+                        <small>Le dossier a été validé</small>
                     </div>
-
-                    @if($company->rejection_reason)
-                    <div class="alert alert-danger">
-                        <strong>Motif du rejet :</strong><br>
-                        {{ $company->rejection_reason }}
+                    @if($company->confirmed)
+                    <div class="alert alert-primary mt-2 mb-0">
+                        <i class="bi bi-hand-thumbs-up fs-4"></i>
+                        <h6 class="mt-2 mb-1">Participation confirmée</h6>
+                        <small>L'entreprise a confirmé sa présence</small>
+                    </div>
+                    @endif
+                    @else
+                    <div class="alert alert-danger mb-0">
+                        <i class="bi bi-x-circle fs-4"></i>
+                        <h6 class="mt-2 mb-1">Rejeté</h6>
+                        @if($company->rejection_reason)
+                        <small class="d-block mt-2">
+                            <strong>Motif :</strong><br>
+                            {{ $company->rejection_reason }}
+                        </small>
+                        @endif
                     </div>
                     @endif
                 </div>
             </div>
 
-            <!-- Dates importantes -->
+            <!-- Dates -->
             <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-white border-0 py-3">
-                    <h5 class="mb-0"><i class="bi bi-calendar3 me-2"></i>Dates importantes</h5>
+                    <h5 class="mb-0"><i class="bi bi-calendar me-2"></i>Dates</h5>
                 </div>
                 <div class="card-body">
                     <div class="mb-3">
@@ -273,22 +277,36 @@
                 <div class="card-body">
                     <div class="d-grid gap-2">
                         @if($company->status === 'pending')
-                        <button type="button" 
-                                class="btn btn-success"
-                                onclick="approveCompany({{ $company->id }}, '{{ $company->name }}')">
-                            <i class="bi bi-check-circle"></i> Approuver le dossier
-                        </button>
+                        <!-- Formulaire d'approbation -->
+                        <form action="{{ route('admin.approve', $company->id) }}" 
+                              method="POST"
+                              onsubmit="return confirm('Approuver l\'entreprise {{ addslashes($company->name) }} ?\n\nUn email de confirmation sera envoyé automatiquement.')">
+                            @csrf
+                            @method('PUT')
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="bi bi-check-circle"></i> Approuver le dossier
+                            </button>
+                        </form>
+                        
+                        <!-- Bouton modal de rejet -->
                         <button type="button" 
                                 class="btn btn-danger"
-                                onclick="openRejectModal({{ $company->id }}, '{{ $company->name }}')">
+                                data-bs-toggle="modal"
+                                data-bs-target="#rejectModal">
                             <i class="bi bi-x-circle"></i> Rejeter le dossier
                         </button>
+                        
                         @elseif($company->status === 'rejected')
-                        <button type="button" 
-                                class="btn btn-warning"
-                                onclick="approveCompany({{ $company->id }}, '{{ $company->name }}')">
-                            <i class="bi bi-arrow-counterclockwise"></i> Réexaminer et approuver
-                        </button>
+                        <!-- Formulaire de réexamen -->
+                        <form action="{{ route('admin.approve', $company->id) }}" 
+                              method="POST"
+                              onsubmit="return confirm('Réexaminer et approuver {{ addslashes($company->name) }} ?')">
+                            @csrf
+                            @method('PUT')
+                            <button type="submit" class="btn btn-warning w-100">
+                                <i class="bi bi-arrow-counterclockwise"></i> Réexaminer et approuver
+                            </button>
+                        </form>
                         @endif
 
                         <hr>
@@ -299,11 +317,16 @@
 
                         @if($admin->isSuperAdmin())
                         <hr>
-                        <button type="button" 
-                                class="btn btn-outline-danger"
-                                onclick="deleteCompany({{ $company->id }}, '{{ $company->name }}')">
-                            <i class="bi bi-trash"></i> Supprimer l'entreprise
-                        </button>
+                        <!-- Formulaire de suppression -->
+                        <form action="{{ route('admin.companies', $company->id) }}" 
+                              method="POST"
+                              onsubmit="return confirm('⚠️ ATTENTION ⚠️\n\nÊtes-vous sûr de vouloir SUPPRIMER définitivement l\'entreprise {{ addslashes($company->name) }} ?\n\nCette action est irréversible et supprimera également tous les participants associés.') && confirm('Confirmez-vous vraiment cette suppression ?')">
+                            @csrf
+                            @method('DELETE')
+                            <button type="submit" class="btn btn-outline-danger w-100">
+                                <i class="bi bi-trash"></i> Supprimer l'entreprise
+                            </button>
+                        </form>
                         @endif
                     </div>
                 </div>
@@ -314,10 +337,11 @@
 </div>
 
 <!-- Modal de rejet -->
+@if($admin->canManageCompanies())
 <div class="modal fade" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
-            <form id="rejectForm" method="POST">
+            <form action="{{ route('admin.reject', $company->id) }}" method="POST">
                 @csrf
                 @method('PUT')
                 <div class="modal-header">
@@ -327,7 +351,7 @@
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body">
-                    <p>Vous êtes sur le point de rejeter : <strong id="companyNameReject"></strong></p>
+                    <p>Vous êtes sur le point de rejeter : <strong>{{ $company->name }}</strong></p>
                     
                     <div class="alert alert-warning">
                         <i class="bi bi-exclamation-triangle"></i>
@@ -357,65 +381,5 @@
         </div>
     </div>
 </div>
-
-<script>
-// Approbation
-function approveCompany(id, name) {
-    if (confirm(`Approuver l'entreprise "${name}" ?\n\nUn email de confirmation sera envoyé automatiquement.`)) {
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = `/admin/companies/${id}/approve`;
-        
-        const csrf = document.createElement('input');
-        csrf.type = 'hidden';
-        csrf.name = '_token';
-        csrf.value = '{{ csrf_token() }}';
-        
-        const method = document.createElement('input');
-        method.type = 'hidden';
-        method.name = '_method';
-        method.value = 'PUT';
-        
-        form.appendChild(csrf);
-        form.appendChild(method);
-        document.body.appendChild(form);
-        form.submit();
-    }
-}
-
-// Rejet
-function openRejectModal(id, name) {
-    document.getElementById('companyNameReject').textContent = name;
-    document.getElementById('rejectForm').action = `/admin/companies/${id}/reject`;
-    
-    const modal = new bootstrap.Modal(document.getElementById('rejectModal'));
-    modal.show();
-}
-
-// Suppression (Super Admin)
-function deleteCompany(id, name) {
-    if (confirm(`⚠️ ATTENTION ⚠️\n\nÊtes-vous sûr de vouloir SUPPRIMER définitivement l'entreprise "${name}" ?\n\nCette action est irréversible et supprimera également tous les participants associés.`)) {
-        if (confirm('Confirmez-vous vraiment cette suppression ?')) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = `/admin/companies/${id}`;
-            
-            const csrf = document.createElement('input');
-            csrf.type = 'hidden';
-            csrf.name = '_token';
-            csrf.value = '{{ csrf_token() }}';
-            
-            const method = document.createElement('input');
-            method.type = 'hidden';
-            method.name = '_method';
-            method.value = 'DELETE';
-            
-            form.appendChild(csrf);
-            form.appendChild(method);
-            document.body.appendChild(form);
-            form.submit();
-        }
-    }
-}
-</script>
+@endif
 @endsection
