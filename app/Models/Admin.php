@@ -10,6 +10,19 @@ class Admin extends Authenticatable
 {
     use Notifiable;
 
+    /**
+     * Le guard utilisé pour l'authentification
+     */
+    protected $guard = 'admin';
+
+    /**
+     * La table associée au modèle
+     */
+    protected $table = 'admins';
+
+    /**
+     * Les attributs mass assignable
+     */
     protected $fillable = [
         'name', 
         'email', 
@@ -21,14 +34,21 @@ class Admin extends Authenticatable
         'permissions'
     ];
 
+    /**
+     * Les attributs qui doivent être cachés
+     */
     protected $hidden = [
         'password', 
         'remember_token'
     ];
 
+    /**
+     * Les attributs qui doivent être castés
+     */
     protected $casts = [
         'permissions' => 'array',
         'last_login_at' => 'datetime',
+        'email_verified_at' => 'datetime',
     ];
 
     // Constantes pour les rôles
@@ -119,102 +139,17 @@ class Admin extends Authenticatable
     }
 
     /**
-     * Vérifier si l'admin peut créer/gérer les rubriques
-     */
-    public function canManageCategories(): bool
-    {
-        return $this->isSuperAdmin() || $this->isModerator();
-    }
-
-    /**
      * Vérifier si l'admin peut gérer le contenu web
      */
-    public function canManageWebContent(): bool
+    public function canManageContent(): bool
     {
         return $this->isSuperAdmin() || $this->isWebmaster();
     }
 
     /**
-     * Vérifier si l'admin peut gérer les autres admins
+     * Obtenir le nom du rôle en français
      */
-    public function canManageAdmins(): bool
-    {
-        return $this->isSuperAdmin();
-    }
-
-    /**
-     * Relations
-     */
-    public function activityLogs(): HasMany
-    {
-        return $this->hasMany(AdminActivityLog::class);
-    }
-
-    public function createdWebCategories(): HasMany
-    {
-        return $this->hasMany(WebCategory::class, 'created_by');
-    }
-
-    public function createdWebContents(): HasMany
-    {
-        return $this->hasMany(WebContent::class, 'created_by');
-    }
-
-    public function sessions(): HasMany
-    {
-        return $this->hasMany(AdminSession::class);
-    }
-
-    /**
-     * Enregistrer une activité
-     */
-    public function logActivity(
-        string $action, 
-        $model = null, 
-        array $oldValues = [], 
-        array $newValues = [],
-        ?string $description = null
-    ): void {
-        $this->activityLogs()->create([
-            'action' => $action,
-            'model_type' => $model ? get_class($model) : null,
-            'model_id' => $model?->id,
-            'old_values' => $oldValues,
-            'new_values' => $newValues,
-            'ip_address' => request()->ip(),
-            'user_agent' => request()->userAgent(),
-            'description' => $description,
-        ]);
-    }
-
-    /**
-     * Mettre à jour le timestamp de dernière connexion
-     */
-    public function updateLastLogin(): void
-    {
-        $this->update(['last_login_at' => now()]);
-    }
-
-    /**
-     * Scope pour filtrer par rôle
-     */
-    public function scopeByRole($query, string $role)
-    {
-        return $query->where('role', $role);
-    }
-
-    /**
-     * Scope pour les admins actifs
-     */
-    public function scopeActive($query)
-    {
-        return $query->where('status', self::STATUS_ACTIVE);
-    }
-
-    /**
-     * Récupérer un label lisible pour le rôle
-     */
-    public function getRoleLabel(): string
+    public function getRoleNameAttribute(): string
     {
         return match($this->role) {
             self::ROLE_SUPER_ADMIN => 'Super Administrateur',
@@ -226,9 +161,9 @@ class Admin extends Authenticatable
     }
 
     /**
-     * Récupérer un label lisible pour le statut
+     * Obtenir le nom du statut en français
      */
-    public function getStatusLabel(): string
+    public function getStatusNameAttribute(): string
     {
         return match($this->status) {
             self::STATUS_ACTIVE => 'Actif',
@@ -236,5 +171,21 @@ class Admin extends Authenticatable
             self::STATUS_SUSPENDED => 'Suspendu',
             default => 'Inconnu',
         };
+    }
+
+    /**
+     * Scope pour les admins actifs
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', self::STATUS_ACTIVE);
+    }
+
+    /**
+     * Scope pour un rôle spécifique
+     */
+    public function scopeRole($query, string $role)
+    {
+        return $query->where('role', $role);
     }
 }

@@ -633,7 +633,7 @@
                     </div>
                     <div class="contact-info-item">
                         <i class="bi bi-calendar-event"></i>
-                        <span>09-10 Octobre 2025</span>
+                        <span>18-19 Novembre 2025</span>
                     </div>
                 </div>
             </div>
@@ -726,7 +726,7 @@
             <i class="bi bi-geo-alt-fill"></i>
             <div>
                 <strong>Lieu</strong><br>
-                Radisson Blu, Libreville, Gabon
+                Hôtel le Nomad, Libreville, Gabon
             </div>
         </div>
         <div class="contact-item">
@@ -747,7 +747,7 @@
             <i class="bi bi-calendar3"></i>
             <div>
                 <strong>Date</strong><br>
-                09-10 Octobre 2025
+                18-19 Novembre 2025
             </div>
         </div>
     </div>
@@ -818,8 +818,8 @@
                             <h1 class="display-2 fw-bold mb-3">FORUM FACIGA</h1>
                             <h2 class="h3 mb-4">Côte d'Ivoire - Gabon</h2>
                             <ul class="list-unstyled mb-4">
-                                <li class="mb-2"><i class="bi bi-calendar-event me-2"></i> 09-10 Octobre 2025</li>
-                                <li class="mb-2"><i class="bi bi-geo-alt me-2"></i> Radisson Blu, Libreville</li>
+                                <li class="mb-2"><i class="bi bi-calendar-event me-2"></i> 18-19 Novembre 2025</li>
+                                <li class="mb-2"><i class="bi bi-geo-alt me-2"></i> Hôtel le Nomad, Libreville</li>
                             </ul>
                             <div class="mt-4">
                                 <a href="{{ route('inscription') }}" class="btn btn-lg px-5 py-3 me-3" style="background-color: var(--blue-gabon); color: white; border: none;">
@@ -996,7 +996,7 @@
                 <div class="day-header">
                     <div class="timeline-date">
                         <i class="bi bi-calendar-check me-2"></i>
-                        Jour 1 - 09 Octobre 2025
+                        Jour 1 - 18 Novembre 2025
                     </div>
                 </div>
                 
@@ -1065,7 +1065,7 @@
                 <div class="day-header">
                     <div class="timeline-date">
                         <i class="bi bi-calendar-event me-2"></i>
-                        Jour 2 - 10 Octobre 2025
+                        Jour 2 - 19 Novembre 2025
                     </div>
                 </div>
                 
@@ -1237,7 +1237,7 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Countdown Timer - Version améliorée
-const eventDate = new Date('2025-10-09T09:00:00').getTime();
+const eventDate = new Date('2025-11-18T09:00:00').getTime();
 let countdownInterval;
 
 function updateCountdown() {

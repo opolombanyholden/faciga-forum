@@ -10,7 +10,7 @@ class Company extends Authenticatable
 
     protected $fillable = [
         'name', 'country', 'sector', 'email', 'password', 'phone', 'logo',
-        'status', 'confirmed', 'motivation', 'sectors_interest', 
+        'status', 'rejection_reason', 'confirmed', 'motivation', 'sectors_interest', 
         'wants_btob', 'wants_btog', 'other_meetings'
     ];
 

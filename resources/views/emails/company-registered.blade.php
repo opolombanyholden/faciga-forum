@@ -62,7 +62,7 @@
         
         <div class="footer">
             <p>© 2025 FACIGA - Forum d'Affaires Côte d'Ivoire - Gabon<br>
-            📍 Radisson Blu, Libreville | 📅 09-10 Octobre 2025</p>
+            📍 Hôtel le Nomad, Libreville | 📅 18-19 Novembre 2025</p>
         </div>
     </div>
 </body>
