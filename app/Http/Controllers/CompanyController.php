@@ -23,7 +23,7 @@ class CompanyController extends Controller
             'country' => 'required|in:Côte d\'Ivoire,Gabon',
             'sector' => 'required|string|max:255',
             'email' => 'required|email|unique:companies',
-            'password' => 'required|min:8|confirmed',
+            // PAS DE PASSWORD ICI - il sera généré lors de l'approbation
             'phone' => 'required|string',
             'logo' => 'nullable|image|max:2048',
             'motivation' => 'nullable|string',
@@ -31,40 +31,49 @@ class CompanyController extends Controller
             'wants_btob' => 'nullable|boolean',
             'wants_btog' => 'nullable|boolean',
             'other_meetings' => 'nullable|string',
+            // ✅ VALIDATION DES ACCEPTATIONS
+            'accept_terms' => 'required|accepted',
+            'accept_data_processing' => 'required|accepted',
+        ], [
+            // Messages d'erreur personnalisés
+            'accept_terms.required' => 'Vous devez accepter les conditions générales de participation.',
+            'accept_terms.accepted' => 'Vous devez accepter les conditions générales de participation.',
+            'accept_data_processing.required' => 'Vous devez accepter le traitement de vos données.',
+            'accept_data_processing.accepted' => 'Vous devez accepter le traitement de vos données.',
         ]);
 
-        // Gestion de l'upload du logo avec le système Laravel
+        // Gestion de l'upload du logo
         $logoPath = null;
         if ($request->hasFile('logo')) {
             $logoPath = $request->file('logo')->store('logos', 'public');
         }
 
-        // Création de l'entreprise avec statut "pending"
+        // Création de l'entreprise SANS mot de passe (sera généré lors approbation)
         $company = Company::create([
             'name' => $validated['name'],
             'country' => $validated['country'],
             'sector' => $validated['sector'],
             'email' => $validated['email'],
             'phone' => $validated['phone'],
-            'password' => Hash::make($validated['password']),
+            'password' => null, // NULL - sera généré lors approbation par admin
             'logo' => $logoPath,
             'motivation' => $validated['motivation'] ?? null,
-            'sectors_interest' => json_encode($validated['sectors_interest'] ?? []), // Conversion en JSON
+            'sectors_interest' => json_encode($validated['sectors_interest'] ?? []),
             'wants_btob' => $request->has('wants_btob'),
             'wants_btog' => $request->has('wants_btog'),
             'other_meetings' => $validated['other_meetings'] ?? null,
-            'status' => 'pending', // Statut par défaut
+            'status' => 'pending',
             'confirmed' => false,
         ]);
 
-        // ENVOI UNIQUEMENT DE L'EMAIL DE CONFIRMATION DE RÉCEPTION
+        // ENVOI EMAIL DE CONFIRMATION DE RÉCEPTION UNIQUEMENT
         try {
             Mail::to($company->email)->send(new CompanyRegistered($company));
         } catch (\Exception $e) {
             \Log::error('Erreur envoi email confirmation: ' . $e->getMessage());
         }
 
-        // Redirection vers la page de confirmation avec les données de l'entreprise
+        // Redirection vers page de confirmation
         return redirect()->route('inscription.confirmation')
                         ->with('company', $company);
     }
@@ -114,9 +123,38 @@ class CompanyController extends Controller
         return view('company.dashboard', compact('company'));
     }
 
+    public function profile()
+    {
+        $company = Auth::guard('company')->user();
+        return view('company.profile', compact('company'));
+    }
+
+    public function updateProfile(Request $request)
+    {
+        $company = Auth::guard('company')->user();
+
+        $validated = $request->validate([
+            'name' => 'required|string|max:255',
+            'sector' => 'required|string|max:255',
+            'phone' => 'required|string',
+            'logo' => 'nullable|image|max:2048',
+            'motivation' => 'nullable|string',
+        ]);
+
+        if ($request->hasFile('logo')) {
+            $validated['logo'] = $request->file('logo')->store('logos', 'public');
+        }
+
+        $company->update($validated);
+
+        return back()->with('success', 'Profil mis à jour avec succès !');
+    }
+
     public function directory()
     {
         $currentCompany = Auth::guard('company')->user();
+        
+        // Afficher uniquement les entreprises du pays opposé
         $companies = Company::where('status', 'approved')
             ->where('confirmed', true)
             ->where('country', '!=', $currentCompany->country)

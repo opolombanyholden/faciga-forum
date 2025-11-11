@@ -7,40 +7,22 @@ use App\Http\Controllers\CompanyController;
 use App\Http\Controllers\AdminController;
 use App\Http\Controllers\MeetingRequestController;
 
-/*
-|--------------------------------------------------------------------------
-| Routes Web
-|--------------------------------------------------------------------------
-*/
-
-// ============================================================================
-// PAGES PUBLIQUES
-// ============================================================================
-
+// Pages publiques
 Route::get('/', [HomeController::class, 'index'])->name('home');
 Route::get('/contact', [HomeController::class, 'contact'])->name('contact');
 Route::post('/contact', [HomeController::class, 'sendContact'])->name('contact.send');
 
-// ============================================================================
-// INSCRIPTION
-// ============================================================================
-
+// Inscription
 Route::get('/inscription', [CompanyController::class, 'create'])->name('inscription');
 Route::post('/inscription', [CompanyController::class, 'store'])->name('inscription.store');
 Route::get('/inscription/confirmation', [CompanyController::class, 'confirmation'])->name('inscription.confirmation');
 
-// ============================================================================
-// AUTHENTIFICATION ENTREPRISE
-// ============================================================================
-
+// Authentification entreprise
 Route::get('/login', [CompanyController::class, 'loginForm'])->name('login');
 Route::post('/login', [CompanyController::class, 'login'])->name('login.submit');
 Route::post('/logout', [CompanyController::class, 'logout'])->name('logout');
 
-// ============================================================================
-// ESPACE ENTREPRISE (Authentifié)
-// ============================================================================
-
+// Espace entreprise (authentifié)
 Route::middleware('auth:company')->prefix('dashboard')->group(function () {
     Route::get('/', [CompanyController::class, 'dashboard'])->name('company.dashboard');
     Route::get('/profile', [CompanyController::class, 'profile'])->name('company.profile');
@@ -56,90 +38,28 @@ Route::middleware('auth:company')->prefix('dashboard')->group(function () {
     Route::put('/meeting-request/{id}/respond', [MeetingRequestController::class, 'respond'])->name('meeting.respond');
 });
 
-// ============================================================================
-// ESPACE ADMINISTRATEUR - COMPLET ET AMÉLIORÉ
-// ============================================================================
-
-Route::prefix('admin')->name('admin.')->group(function () {
+// Espace administrateur
+Route::prefix('admin')->group(function () {
+    Route::get('/login', [AdminController::class, 'loginForm'])->name('admin.login');
+    Route::post('/login', [AdminController::class, 'login'])->name('admin.login.submit');
     
-    // ========================================================================
-    // Login (sans authentification)
-    // ========================================================================
-    Route::get('/login', [AdminController::class, 'loginForm'])->name('login');
-    Route::post('/login', [AdminController::class, 'login'])->name('login.submit');
-    
-    // ========================================================================
-    // Routes protégées (avec authentification admin)
-    // ========================================================================
     Route::middleware('auth:admin')->group(function () {
+        // Dashboard
+        Route::get('/', [AdminController::class, 'dashboard'])->name('admin.dashboard');
         
-        // Dashboard principal
-        Route::get('/', [AdminController::class, 'dashboard'])->name('dashboard');
+        // Gestion des entreprises
+        Route::get('/companies', [AdminController::class, 'companies'])->name('admin.companies');
+        Route::get('/company/{id}', [AdminController::class, 'showCompany'])->name('admin.company.show');
+        Route::put('/companies/{id}/approve', [AdminController::class, 'approve'])->name('admin.approve');
+        Route::put('/companies/{id}/reject', [AdminController::class, 'reject'])->name('admin.reject');
         
-        // ====================================================================
-        // Gestion des entreprises (avec groupe nommé)
-        // ====================================================================
-        Route::prefix('companies')->name('companies.')->group(function () {
-            Route::get('/', [AdminController::class, 'companies'])->name('index');
-            Route::get('/{id}', [AdminController::class, 'showCompany'])->name('show');
-            Route::put('/{id}/approve', [AdminController::class, 'approve'])->name('approve');
-            Route::put('/{id}/reject', [AdminController::class, 'reject'])->name('reject');
-            Route::delete('/{id}', [AdminController::class, 'deleteCompany'])->name('delete');
-        });
-        
-        // Raccourcis pour compatibilité avec l'ancien système
-        Route::get('/companies', [AdminController::class, 'companies'])->name('companies');
-        Route::get('/companies/{id}', [AdminController::class, 'showCompany'])->name('company.show');
-        Route::put('/companies/{id}/approve', [AdminController::class, 'approve'])->name('approve');
-        Route::put('/companies/{id}/reject', [AdminController::class, 'reject'])->name('reject');
-        
-        // ====================================================================
         // Gestion des participants
-        // ====================================================================
-        Route::get('/participants', [AdminController::class, 'participants'])->name('participants');
+        Route::get('/participants', [AdminController::class, 'participants'])->name('admin.participants');
         
-        // ====================================================================
-        // Export des données
-        // ====================================================================
-        Route::get('/export/companies', [AdminController::class, 'exportCompanies'])->name('export.companies');
+        // ✅ NOUVELLE ROUTE : Export CSV
+        Route::get('/export/companies', [AdminController::class, 'exportCompanies'])->name('admin.export.companies');
         
-        // ====================================================================
-        // Logs d'activité (Super Admin et Moderator uniquement)
-        // ====================================================================
-        Route::get('/activity-logs', [AdminController::class, 'activityLogs'])->name('activity-logs');
-        
-        // ====================================================================
         // Déconnexion
-        // ====================================================================
         Route::post('/logout', [AdminController::class, 'logout'])->name('admin.logout');
-        
-        // Raccourci pour compatibilité
-        Route::post('/logout', [AdminController::class, 'logout'])->name('logout');
     });
 });
-
-// ============================================================================
-// NOTES DE DÉVELOPPEMENT
-// ============================================================================
-/*
- * Routes Admin disponibles:
- * 
- * GET  /admin/login                       - Formulaire de connexion
- * POST /admin/login                       - Traiter la connexion
- * GET  /admin                             - Dashboard principal
- * GET  /admin/companies                   - Liste des entreprises (avec filtres)
- * GET  /admin/companies/{id}              - Détails d'une entreprise
- * PUT  /admin/companies/{id}/approve      - Approuver une entreprise
- * PUT  /admin/companies/{id}/reject       - Rejeter une entreprise
- * DELETE /admin/companies/{id}            - Supprimer une entreprise (Super Admin)
- * GET  /admin/participants                - Liste des participants
- * GET  /admin/export/companies            - Exporter les données en CSV
- * GET  /admin/activity-logs               - Consulter les logs d'activité
- * POST /admin/logout                      - Déconnexion
- * 
- * Permissions:
- * - Super Admin: Accès total
- * - Moderator: Validation + Gestion participants + Logs
- * - Analyst: Lecture seule + Export
- * - Webmaster: Contenu web uniquement (pas d'accès entreprises)
- */

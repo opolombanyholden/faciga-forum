@@ -1,14 +1,17 @@
-<?php
+<?php 
 
 namespace App\Http\Controllers;
 
 use App\Models\Admin;
 use App\Models\Company;
 use App\Models\Participant;
+use App\Models\AdminActivityLog;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use App\Mail\CompanyApproved;
 use App\Mail\CompanyRejected;
 
@@ -19,14 +22,11 @@ class AdminController extends Controller
      */
     public function loginForm()
     {
-        if (Auth::guard('admin')->check()) {
-            return redirect()->route('admin.dashboard');
-        }
-        return view('admin.login');  // ← IMPORTANT: admin.login (pas juste 'login')
+        return view('admin.login');
     }
 
     /**
-     * Traiter la connexion
+     * Authentification admin
      */
     public function login(Request $request)
     {
@@ -35,251 +35,87 @@ class AdminController extends Controller
             'password' => 'required',
         ]);
 
-        // IMPORTANT: Utiliser Auth::guard('admin')->attempt()
-        if (Auth::guard('admin')->attempt($credentials, $request->filled('remember'))) {
+        if (Auth::guard('admin')->attempt($credentials)) {
             $request->session()->regenerate();
             
-            // Mettre à jour la dernière connexion
-            $admin = Auth::guard('admin')->user();
-            $admin->update(['last_login_at' => now()]);
+            // Log de l'activité de connexion
+            $this->logActivity('login', null, null, 'Connexion réussie au dashboard admin');
             
-            return redirect()->intended(route('admin.dashboard'))
-                ->with('success', 'Bienvenue ' . $admin->name);
+            return redirect()->route('admin.dashboard');
         }
 
-        return back()->withErrors([
-            'email' => 'Les identifiants fournis ne correspondent pas à nos enregistrements.',
-        ])->onlyInput('email');
+        return back()->withErrors(['email' => 'Identifiants incorrects.']);
     }
 
     /**
-     * Dashboard principal
+     * Dashboard admin avec statistiques
      */
     public function dashboard()
     {
         $admin = Auth::guard('admin')->user();
         
-        // Statistiques générales
+        // Statistiques complètes
         $stats = [
-            'total' => Company::count(),
             'pending' => Company::where('status', 'pending')->count(),
             'approved' => Company::where('status', 'approved')->count(),
             'rejected' => Company::where('status', 'rejected')->count(),
             'confirmed' => Company::where('confirmed', true)->count(),
+            'total' => Company::count(),
             'participants_total' => Participant::count(),
             'cote_ivoire' => Company::where('country', 'Côte d\'Ivoire')->count(),
             'gabon' => Company::where('country', 'Gabon')->count(),
+            'cote_ivoire_approved' => Company::where('country', 'Côte d\'Ivoire')
+                                            ->where('status', 'approved')
+                                            ->count(),
+            'gabon_approved' => Company::where('country', 'Gabon')
+                                      ->where('status', 'approved')
+                                      ->count(),
         ];
         
-        // Dernières inscriptions
+        // Entreprises récentes (10 dernières)
         $recentCompanies = Company::with('participants')
-            ->latest()
-            ->take(5)
-            ->get();
+                                  ->latest()
+                                  ->take(10)
+                                  ->get();
         
-        // Activités récentes (si le log est activé)
-        $recentActivities = DB::table('admin_activity_logs')
-            ->join('admins', 'admin_activity_logs.admin_id', '=', 'admins.id')
-            ->select('admin_activity_logs.*', 'admins.name as admin_name')
-            ->orderBy('admin_activity_logs.created_at', 'desc')
-            ->take(10)
-            ->get();
+        // Statistiques par secteur (Top 5)
+        $sectorStats = Company::where('status', 'approved')
+                             ->select('sector', DB::raw('COUNT(*) as total'))
+                             ->groupBy('sector')
+                             ->orderBy('total', 'DESC')
+                             ->take(5)
+                             ->get();
         
-        // Statistiques par secteur
-        $sectorStats = Company::select('sector', DB::raw('count(*) as total'))
-            ->where('status', 'approved')
-            ->groupBy('sector')
-            ->orderBy('total', 'desc')
-            ->take(10)
-            ->get();
-        
-        return view('admin.dashboard', compact(
-            'stats', 
-            'recentCompanies', 
-            'recentActivities',
-            'sectorStats',
-            'admin'
-        ));
+        return view('admin.dashboard', compact('admin', 'stats', 'recentCompanies', 'sectorStats'));
     }
 
     /**
-     * Liste des entreprises avec filtres
+     * Liste de toutes les entreprises
      */
-    public function companies(Request $request)
+    public function companies()
     {
         $admin = Auth::guard('admin')->user();
+        $companies = Company::with('participants')->latest()->get();
         
-        // Vérifier les permissions
-        if (!$admin->canViewData()) {
-            abort(403, 'Accès non autorisé');
-        }
-        
-        $query = Company::with('participants');
-        
-        // Filtres
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        
-        if ($request->filled('country')) {
-            $query->where('country', $request->country);
-        }
-        
-        if ($request->filled('confirmed')) {
-            $query->where('confirmed', $request->confirmed === '1');
-        }
-        
-        if ($request->filled('search')) {
-            $search = $request->search;
-            $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('sector', 'like', "%{$search}%");
-            });
-        }
-        
-        // Tri
-        $sortField = $request->get('sort', 'created_at');
-        $sortDirection = $request->get('direction', 'desc');
-        $query->orderBy($sortField, $sortDirection);
-        
-        // Pagination
-        $companies = $query->paginate(20)->withQueryString();
-        
-        return view('admin.companies', compact('companies', 'admin'));
+        return view('admin.companies', compact('admin', 'companies'));
     }
 
     /**
-     * Détails d'une entreprise
+     * Afficher les détails d'une entreprise
      */
     public function showCompany($id)
     {
         $admin = Auth::guard('admin')->user();
-        
-        if (!$admin->canViewData()) {
-            abort(403, 'Accès non autorisé');
-        }
-        
         $company = Company::with('participants')->findOrFail($id);
         
-        return view('admin.company-details', compact('company', 'admin'));
-    }
-
-    /**
-     * Approuver une entreprise
-     */
-    public function approve($id, Request $request)
-    {
-        $admin = Auth::guard('admin')->user();
-        
-        if (!$admin->canManageCompanies()) {
-            return back()->with('error', 'Vous n\'avez pas les permissions nécessaires.');
-        }
-        
-        $company = Company::findOrFail($id);
-        
-        if ($company->status === 'approved') {
-            return back()->with('info', 'Cette entreprise est déjà approuvée.');
-        }
-        
-        $oldStatus = $company->status;
-        $company->update(['status' => 'approved']);
-        
-        // Enregistrer l'activité
         $this->logActivity(
-            'approve_company',
+            'view_company',
             'Company',
             $company->id,
-            "Approbation de l'entreprise {$company->name}",
-            ['status' => $oldStatus],
-            ['status' => 'approved']
+            "Consultation du dossier de l'entreprise {$company->name}"
         );
         
-        // Envoyer l'email d'approbation
-        try {
-            Mail::to($company->email)->send(new CompanyApproved($company));
-        } catch (\Exception $e) {
-            \Log::error('Erreur envoi email approbation: ' . $e->getMessage());
-        }
-        
-        return back()->with('success', "L'entreprise {$company->name} a été approuvée avec succès !");
-    }
-
-    /**
-     * Rejeter une entreprise avec motif
-     */
-    public function reject($id, Request $request)
-    {
-        $admin = Auth::guard('admin')->user();
-        
-        if (!$admin->canManageCompanies()) {
-            return back()->with('error', 'Vous n\'avez pas les permissions nécessaires.');
-        }
-        
-        $request->validate([
-            'rejection_reason' => 'nullable|string|max:1000'
-        ]);
-        
-        $company = Company::findOrFail($id);
-        
-        if ($company->status === 'rejected') {
-            return back()->with('info', 'Cette entreprise est déjà rejetée.');
-        }
-        
-        $oldStatus = $company->status;
-        $rejectionReason = $request->rejection_reason ?? 'Dossier incomplet ou non conforme';
-        
-        $company->update([
-            'status' => 'rejected',
-            'rejection_reason' => $rejectionReason
-        ]);
-        
-        // Enregistrer l'activité
-        $this->logActivity(
-            'reject_company',
-            'Company',
-            $company->id,
-            "Rejet de l'entreprise {$company->name}",
-            ['status' => $oldStatus],
-            ['status' => 'rejected', 'reason' => $rejectionReason]
-        );
-        
-        // Envoyer l'email de rejet
-        try {
-            Mail::to($company->email)->send(new CompanyRejected($company, $rejectionReason));
-        } catch (\Exception $e) {
-            \Log::error('Erreur envoi email rejet: ' . $e->getMessage());
-        }
-        
-        return back()->with('success', "L'entreprise {$company->name} a été rejetée.");
-    }
-
-    /**
-     * Supprimer une entreprise (Super Admin uniquement)
-     */
-    public function deleteCompany($id)
-    {
-        $admin = Auth::guard('admin')->user();
-        
-        if (!$admin->isSuperAdmin()) {
-            return back()->with('error', 'Seul le super administrateur peut supprimer des entreprises.');
-        }
-        
-        $company = Company::findOrFail($id);
-        $companyName = $company->name;
-        
-        // Enregistrer avant suppression
-        $this->logActivity(
-            'delete_company',
-            'Company',
-            $company->id,
-            "Suppression de l'entreprise {$companyName}"
-        );
-        
-        $company->delete();
-        
-        return redirect()->route('admin.companies')
-            ->with('success', "L'entreprise {$companyName} a été supprimée.");
+        return view('admin.company-details', compact('admin', 'company'));
     }
 
     /**
@@ -289,70 +125,81 @@ class AdminController extends Controller
     {
         $admin = Auth::guard('admin')->user();
         
-        if (!$admin->canViewData()) {
-            abort(403, 'Accès non autorisé');
-        }
+        // Toutes les entreprises pour le filtre
+        $companies = Company::orderBy('name')->get();
         
+        // Query de base avec eager loading
         $query = Participant::with('company');
         
-        // Filtres
+        // Filtre par entreprise
         if ($request->filled('company_id')) {
             $query->where('company_id', $request->company_id);
         }
         
+        // Recherche par nom, email ou fonction
         if ($request->filled('search')) {
             $search = $request->search;
             $query->where(function($q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                  ->orWhere('email', 'like', "%{$search}%")
-                  ->orWhere('function', 'like', "%{$search}%");
+                $q->where('name', 'LIKE', "%{$search}%")
+                  ->orWhere('email', 'LIKE', "%{$search}%")
+                  ->orWhere('function', 'LIKE', "%{$search}%");
             });
         }
         
-        $participants = $query->paginate(30)->withQueryString();
-        $companies = Company::where('status', 'approved')->orderBy('name')->get();
+        // Pagination
+        $participants = $query->latest()->paginate(20);
         
-        return view('admin.participants', compact('participants', 'companies', 'admin'));
+        return view('admin.participants', compact('admin', 'companies', 'participants'));
     }
 
     /**
-     * Export des données en CSV
+     * ✅ NOUVELLE MÉTHODE : Exporter les entreprises en CSV
      */
-    public function exportCompanies(Request $request)
+    public function exportCompanies()
     {
         $admin = Auth::guard('admin')->user();
         
-        if (!$admin->canViewData()) {
-            abort(403, 'Accès non autorisé');
-        }
+        // Log de l'activité
+        $this->logActivity('export_companies', null, null, 'Export CSV des entreprises');
         
-        $companies = Company::with('participants')->get();
+        // Récupérer toutes les entreprises avec participants
+        $companies = Company::with('participants')->orderBy('created_at', 'DESC')->get();
         
-        $filename = 'faciga_companies_' . date('Y-m-d_His') . '.csv';
+        // Nom du fichier
+        $filename = 'faciga_2025_entreprises_' . date('Y-m-d_His') . '.csv';
         
+        // Headers pour le téléchargement
         $headers = [
             'Content-Type' => 'text/csv; charset=UTF-8',
             'Content-Disposition' => "attachment; filename=\"{$filename}\"",
+            'Pragma' => 'no-cache',
+            'Cache-Control' => 'must-revalidate, post-check=0, pre-check=0',
+            'Expires' => '0'
         ];
         
+        // Callback pour générer le CSV
         $callback = function() use ($companies) {
             $file = fopen('php://output', 'w');
             
-            // BOM UTF-8
+            // BOM UTF-8 pour Excel
             fprintf($file, chr(0xEF).chr(0xBB).chr(0xBF));
             
-            // En-têtes
+            // En-têtes CSV
             fputcsv($file, [
                 'ID',
-                'Nom',
+                'Entreprise',
                 'Pays',
                 'Secteur',
+                'Représentant',
+                'Fonction',
                 'Email',
                 'Téléphone',
+                'Site web',
                 'Statut',
                 'Confirmé',
-                'Participants',
-                'Date inscription'
+                'Nb. Participants',
+                'Date inscription',
+                'Date validation'
             ], ';');
             
             // Données
@@ -362,87 +209,166 @@ class AdminController extends Controller
                     $company->name,
                     $company->country,
                     $company->sector,
+                    $company->representative_name,
+                    $company->representative_position,
                     $company->email,
                     $company->phone,
-                    $company->status,
+                    $company->website ?? '',
+                    $this->getStatusLabel($company->status),
                     $company->confirmed ? 'Oui' : 'Non',
                     $company->participants->count(),
-                    $company->created_at->format('d/m/Y H:i')
+                    $company->created_at->format('d/m/Y H:i'),
+                    $company->updated_at->format('d/m/Y H:i')
                 ], ';');
             }
             
             fclose($file);
         };
         
-        // Enregistrer l'export
-        $this->logActivity(
-            'export_companies',
-            null,
-            null,
-            "Export de {$companies->count()} entreprises en CSV"
-        );
-        
         return response()->stream($callback, 200, $headers);
     }
 
     /**
-     * Logs d'activité
+     * Approuver une entreprise et générer ses identifiants
      */
-    public function activityLogs(Request $request)
+    public function approve($id)
     {
-        $admin = Auth::guard('admin')->user();
+        $company = Company::findOrFail($id);
         
-        if (!$admin->isSuperAdmin() && !$admin->isModerator()) {
-            abort(403, 'Accès non autorisé');
+        // Générer un mot de passe aléatoire sécurisé (8 caractères)
+        $plainPassword = $this->generateSecurePassword();
+        
+        $oldStatus = $company->status;
+        
+        // Mettre à jour le statut et le mot de passe
+        $company->update([
+            'status' => 'approved',
+            'password' => Hash::make($plainPassword)
+        ]);
+
+        // Log de l'activité
+        $this->logActivity(
+            'approve_company',
+            'Company',
+            $company->id,
+            "Approbation de l'entreprise {$company->name} et génération des identifiants",
+            ['status' => $oldStatus],
+            ['status' => 'approved', 'password_generated' => true]
+        );
+
+        // Envoi de l'email avec les identifiants
+        try {
+            Mail::to($company->email)->send(new CompanyApproved($company, $plainPassword));
+        } catch (\Exception $e) {
+            \Log::error('Erreur envoi email approbation: ' . $e->getMessage());
+            return back()->with('warning', 'Entreprise approuvée mais erreur lors de l\'envoi de l\'email.');
         }
-        
-        $query = DB::table('admin_activity_logs')
-            ->join('admins', 'admin_activity_logs.admin_id', '=', 'admins.id')
-            ->select('admin_activity_logs.*', 'admins.name as admin_name', 'admins.email as admin_email');
-        
-        // Filtres
-        if ($request->filled('admin_id')) {
-            $query->where('admin_activity_logs.admin_id', $request->admin_id);
-        }
-        
-        if ($request->filled('action')) {
-            $query->where('admin_activity_logs.action', $request->action);
-        }
-        
-        if ($request->filled('date_from')) {
-            $query->whereDate('admin_activity_logs.created_at', '>=', $request->date_from);
-        }
-        
-        if ($request->filled('date_to')) {
-            $query->whereDate('admin_activity_logs.created_at', '<=', $request->date_to);
-        }
-        
-        $logs = $query->orderBy('admin_activity_logs.created_at', 'desc')
-            ->paginate(50)
-            ->withQueryString();
-        
-        $admins = Admin::where('status', 'active')->orderBy('name')->get();
-        
-        return view('admin.activity-logs', compact('logs', 'admins', 'admin'));
+
+        return back()->with('success', "Entreprise approuvée ! Email avec identifiants envoyé à {$company->email}");
     }
 
     /**
-     * Déconnexion
+     * Rejeter une entreprise
+     */
+    public function reject(Request $request, $id)
+    {
+        $company = Company::findOrFail($id);
+        
+        $validated = $request->validate([
+            'rejection_reason' => 'nullable|string|max:1000'
+        ]);
+        
+        $rejectionReason = $validated['rejection_reason'] ?? 'Votre dossier ne répond pas aux critères de participation.';
+        
+        $oldStatus = $company->status;
+        
+        // Mise à jour du statut
+        $company->update([
+            'status' => 'rejected',
+            'rejection_reason' => $rejectionReason
+        ]);
+
+        // Log de l'activité
+        $this->logActivity(
+            'reject_company',
+            'Company',
+            $company->id,
+            "Rejet de l'entreprise {$company->name}",
+            ['status' => $oldStatus],
+            ['status' => 'rejected', 'rejection_reason' => $rejectionReason]
+        );
+
+        // Envoi de l'email de rejet
+        try {
+            Mail::to($company->email)->send(new CompanyRejected($company, $rejectionReason));
+        } catch (\Exception $e) {
+            \Log::error('Erreur envoi email rejet: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Entreprise rejetée.');
+    }
+
+    /**
+     * Déconnexion admin
      */
     public function logout(Request $request)
     {
-        $this->logActivity('logout', null, null, 'Déconnexion');
+        $this->logActivity('logout', null, null, 'Déconnexion du dashboard admin');
         
         Auth::guard('admin')->logout();
         $request->session()->invalidate();
         $request->session()->regenerateToken();
         
-        return redirect()->route('admin.login')
-            ->with('success', 'Vous avez été déconnecté avec succès.');
+        return redirect()->route('admin.login');
     }
 
     /**
-     * Méthode privée pour enregistrer les activités
+     * Générer un mot de passe sécurisé aléatoire
+     * Format: 2 majuscules + 4 chiffres + 2 minuscules (8 caractères)
+     */
+    private function generateSecurePassword()
+    {
+        $uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        $numbers = '0123456789';
+        $lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        
+        $password = '';
+        
+        // 2 majuscules
+        for ($i = 0; $i < 2; $i++) {
+            $password .= $uppercase[random_int(0, strlen($uppercase) - 1)];
+        }
+        
+        // 4 chiffres
+        for ($i = 0; $i < 4; $i++) {
+            $password .= $numbers[random_int(0, strlen($numbers) - 1)];
+        }
+        
+        // 2 minuscules
+        for ($i = 0; $i < 2; $i++) {
+            $password .= $lowercase[random_int(0, strlen($lowercase) - 1)];
+        }
+        
+        // Mélanger les caractères pour plus de sécurité
+        return str_shuffle($password);
+    }
+
+    /**
+     * Obtenir le libellé du statut
+     */
+    private function getStatusLabel($status)
+    {
+        $labels = [
+            'pending' => 'En attente',
+            'approved' => 'Approuvé',
+            'rejected' => 'Rejeté'
+        ];
+        
+        return $labels[$status] ?? $status;
+    }
+
+    /**
+     * Logger une activité admin
      */
     private function logActivity(
         string $action, 
@@ -452,22 +378,20 @@ class AdminController extends Controller
         ?array $oldValues = null,
         ?array $newValues = null
     ) {
-        try {
-            DB::table('admin_activity_logs')->insert([
-                'admin_id' => Auth::guard('admin')->id(),
-                'action' => $action,
-                'model_type' => $modelType,
-                'model_id' => $modelId,
-                'description' => $description,
-                'old_values' => $oldValues ? json_encode($oldValues) : null,
-                'new_values' => $newValues ? json_encode($newValues) : null,
-                'ip_address' => request()->ip(),
-                'user_agent' => request()->userAgent(),
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]);
-        } catch (\Exception $e) {
-            \Log::error('Erreur log activité admin: ' . $e->getMessage());
+        if (!Auth::guard('admin')->check()) {
+            return;
         }
+
+        AdminActivityLog::create([
+            'admin_id' => Auth::guard('admin')->id(),
+            'action' => $action,
+            'model_type' => $modelType,
+            'model_id' => $modelId,
+            'old_values' => $oldValues ? json_encode($oldValues) : null,
+            'new_values' => $newValues ? json_encode($newValues) : null,
+            'ip_address' => request()->ip(),
+            'user_agent' => request()->userAgent(),
+            'description' => $description,
+        ]);
     }
 }

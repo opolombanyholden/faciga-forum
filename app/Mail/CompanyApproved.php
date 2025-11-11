@@ -12,15 +12,26 @@ class CompanyApproved extends Mailable
     use Queueable, SerializesModels;
 
     public $company;
+    public $password;
 
-    public function __construct(Company $company)
+    /**
+     * Create a new message instance.
+     *
+     * @param  Company  $company
+     * @param  string  $password  Le mot de passe en clair généré
+     */
+    public function __construct(Company $company, string $password)
     {
         $this->company = $company;
+        $this->password = $password;
     }
 
+    /**
+     * Build the message.
+     */
     public function build()
     {
-        return $this->subject('✅ Dossier approuvé - FACIGA 2025')
+        return $this->subject('✅ Dossier approuvé - FACIGA 2025 - Vos identifiants de connexion')
                     ->view('emails.company-approved');
     }
 }
